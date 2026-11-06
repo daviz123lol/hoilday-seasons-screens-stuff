@@ -1,0 +1,28 @@
+modLoader = "javafml"
+loaderVersion = "[1,)"
+license = "${mod_license}"
+
+[[mods]]
+modId = "${mod_id}"
+version = "${mod_version}"
+displayName = "${mod_name}"
+description = '''
+Festive animated screens for every holiday and season: Halloween, Christmas, New Year's, Valentine's Day, St. Patrick's Day, Spring, Summer and Thanksgiving. Inventory, chests, furnaces, blast furnaces, smokers and every other container screen. Bats, Santa's sleigh, fireworks, hearts, gold, beach balls and more. Client-side only.
+'''
+
+[[mixins]]
+config = "${mod_id}.mixins.json"
+
+[[dependencies.${mod_id}]]
+modId = "neoforge"
+type = "required"
+versionRange = "[${neo_version},)"
+ordering = "NONE"
+side = "CLIENT"
+
+[[dependencies.${mod_id}]]
+modId = "minecraft"
+type = "required"
+versionRange = "${minecraft_version_range}"
+ordering = "NONE"
+side = "CLIENT"

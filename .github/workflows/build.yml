@@ -1,0 +1,38 @@
+name: Build both jars
+
+# Push this project to your own GitHub repo, then either push a commit or press
+# "Run workflow" on the Actions tab. Download the two jars from the run's Artifacts.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 26.1.2.109 = All the Mods 11 build.  26.1.2.126 = newest NeoForge 26.1.2 build at time of writing.
+        neo: ["26.1.2.109", "26.1.2.126"]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 25
+        uses: actions/setup-java@v4
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build for NeoForge ${{ matrix.neo }}
+        run: ./gradlew build -Pneo_version=${{ matrix.neo }}
+
+      - name: Upload jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: festivescreens-neoforge-${{ matrix.neo }}
+          path: build/libs/festivescreens-neoforge-${{ matrix.neo }}-*.jar

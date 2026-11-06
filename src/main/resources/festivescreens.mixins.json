@@ -1,0 +1,13 @@
+{
+	"required": false,
+	"package": "com.festivescreens.mixin",
+	"compatibilityLevel": "JAVA_25",
+	"client": [
+		"AbstractContainerScreenMixin",
+		"GuiMixin",
+		"ScreenMixin"
+	],
+	"injectors": {
+		"defaultRequire": 0
+	}
+}
