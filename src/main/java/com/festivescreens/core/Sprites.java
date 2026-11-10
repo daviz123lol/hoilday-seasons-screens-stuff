@@ -102,6 +102,122 @@ public final class Sprites {
             "w.w.w",
             "..w..");
 
+    public static final Sprite SNOWMAN = s("w=FFFFFF,g=B0BEC5,k=263238,o=FF9800,r=E53935,b=6D4C41",
+            "...kkk...",
+            "..kkkkk..",
+            ".kkkkkkk.",
+            "..wwwww..",
+            "..kwwwk..",
+            "..wwoww..",
+            "..rrrrr..",
+            "bwwwkwwwb",
+            ".wwwkwwwg",
+            ".wwwwwwg.",
+            "wwwwwwwww",
+            "wwwkwwwww",
+            "wwwwwwwgw",
+            ".wwwwwwg.");
+
+
+    /** A beach ball seen from the side that turns through 12 frames (6 coloured panels around a sphere). */
+    private static Sprite[] spinningBall() {
+        Sprite[] out = new Sprite[12];
+        for (int f = 0; f < 12; f++) {
+            String[] rows = new String[11];
+            for (int y = 0; y < 11; y++) {
+                StringBuilder sb = new StringBuilder();
+                for (int x = 0; x < 11; x++) {
+                    double u = (x - 5) / 5.2, v = (y - 5) / 5.2;
+                    double d2 = u * u + v * v;
+                    if (d2 > 1.0) { sb.append('.'); continue; }
+                    double z = Math.sqrt(1.0 - d2);
+                    double lon = Math.atan2(u, z) + f * Math.PI / 6.0 + v * 0.35;
+                    int seg = (int) Math.floor((lon + 100 * Math.PI) / (Math.PI / 3.0)) % 6;
+                    char base = new char[] {'R', 'W', 'B', 'W', 'Y', 'W'}[seg];
+                    boolean edge = d2 > 0.78;
+                    boolean shade = (u + v) > 0.55;
+                    boolean hi = (u + v) < -0.9 && d2 < 0.5;
+                    char ch = base;
+                    if (hi) ch = 'H';
+                    else if (edge || shade) ch = Character.toLowerCase(base);
+                    sb.append(ch);
+                }
+                rows[y] = sb.toString();
+            }
+            out[f] = s("R=E8383D,W=FFFFFF,B=3B8EEA,Y=FFD54F,r=B22A30,w=C8CDD6,b=2A66B0,y=C9A53A,H=FFFFFF", rows);
+        }
+        return out;
+    }
+
+    public static final Sprite[] BEACH_BALLS = spinningBall();
+
+    public static final Sprite GIFT = s("r=E53935,g=43A047,y=FFD54F,d=B71C1C,e=2E7D32",
+            "..y.y..",
+            "...y...",
+            "rrryrrr",
+            "rrryrrr",
+            "yyyyyyy",
+            "rrryrrr",
+            "ddydddd");
+    public static final Sprite GIFT_GREEN = s("r=E53935,g=43A047,y=FFD54F,d=B71C1C,e=2E7D32",
+            "..r.r..",
+            "...r...",
+            "gggrggg",
+            "gggrggg",
+            "rrrrrrr",
+            "gggrggg",
+            "eeereee");
+
+    public static final Sprite GHOST_A = s("w=F5F5FF,s=C5CAE9,k=263238",
+            "...wwwww...",
+            "..wwwwwww..",
+            ".wwwwwwwww.",
+            ".wwkwwwkww.",
+            ".wwkwwwkww.",
+            ".wwwwkwwww.",
+            ".wwwwkwwww.",
+            ".wwwwwwwww.",
+            ".wwwwwwwww.",
+            ".wswwswwsw.",
+            "ws.wsw.ws.w");
+    public static final Sprite GHOST_B = s("w=F5F5FF,s=C5CAE9,k=263238",
+            "...wwwww...",
+            "..wwwwwww..",
+            ".wwwwwwwww.",
+            ".wwkwwwkww.",
+            ".wwkwwwkww.",
+            ".wwwwkwwww.",
+            ".wwwwkwwww.",
+            ".wwwwwwwww.",
+            ".wwwwwwwww.",
+            ".wwswwswws.",
+            "..wsw.wsw..");
+    public static final Sprite[] GHOST = arr(GHOST_A, GHOST_B);
+
+    public static final Sprite ARROW = s("g=B0BEC5,b=6D4C41,r=FF4F7B,d=C2185B,w=FFFFFF",
+            "w.........rr.rr",
+            "wb........rrrrr",
+            ".wbbbbbbbbbrrrr",
+            "wb.........rrr.",
+            "w...........ddd");
+    public static final Sprite GULL_A = s("w=FFFFFF,g=CFD8DC,k=263238,o=FFA000",
+            "ww.......ww",
+            ".wwww.wwww.",
+            "...wwwww...",
+            "....wkwwo..");
+    public static final Sprite GULL_B = s("w=FFFFFF,g=CFD8DC,k=263238,o=FFA000",
+            "...........",
+            "...wwwww...",
+            "wwwwwkwwwwo",
+            "ww.......ww");
+    public static final Sprite[] GULL = arr(GULL_A, GULL_B);
+    public static final Sprite TWINKLE = s("w=FFFFFF,y=FFF59D",
+            "..w..",
+            "..y..",
+            "wyyyw",
+            "..y..",
+            "..w..");
+
     private static Sprite ornament(String hex) {
         return s("r=" + hex + ",y=FFD54F,w=88FFFFFF",
                 "..y..",
@@ -337,6 +453,7 @@ public final class Sprites {
                 PETALS[0][0], PETALS[1][0], PETALS[2][0],
                 FLOWER_PINK, FLOWER_WHITE, FLOWER_PURPLE, FLOWER_ORANGE, LEAF_GREEN,
                 BUTTERFLIES[0][0], BUTTERFLIES[0][1],
-                BEACH_BALL, STARFISH, SHELL, SUN_A, SUN_B, CHEST_LID};
+                BEACH_BALL, STARFISH, SHELL, SUN_A, SUN_B, CHEST_LID, SNOWMAN, GIFT, GIFT_GREEN, GHOST_A, GHOST_B, ARROW, GULL_A, GULL_B, TWINKLE,
+                BEACH_BALLS[0], BEACH_BALLS[3], BEACH_BALLS[6]};
     }
 }

@@ -4,7 +4,9 @@
 	"compatibilityLevel": "JAVA_25",
 	"client": [
 		"AbstractContainerScreenMixin",
+		"GuiGraphicsExtractorMixin",
 		"GuiMixin",
+		"MusicManagerMixin",
 		"ScreenMixin"
 	],
 	"injectors": {

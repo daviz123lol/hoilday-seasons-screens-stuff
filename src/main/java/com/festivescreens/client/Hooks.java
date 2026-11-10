@@ -31,14 +31,17 @@ public final class Hooks {
     private static boolean failed;
     private static boolean loggedTheme;
     private static boolean warnedNoPanel;
+    private static boolean tintOn;
+    private static Screen lastMenu;
 
     private Hooks() {}
 
     /** Runs once per frame (first hook to fire). Returns false when there is nothing to draw. */
-    private static boolean begin(GuiGraphicsExtractor g, boolean screenOpen, boolean container) {
+    private static boolean begin(GuiGraphicsExtractor g, boolean screenOpen, boolean container, boolean menu) {
         Theme t = Settings.currentTheme();
         ENGINE.setTheme(t);
         if (t == Theme.NONE) {
+            Music.stop();
             lastNanos = 0L;
             lastContainer = null;
             return false;
@@ -51,13 +54,14 @@ public final class Hooks {
         long now = System.nanoTime();
         float dt = lastNanos == 0L ? 0f : Math.min(0.1f, (now - lastNanos) / 1.0e9f);
         lastNanos = now;
-        ENGINE.setAmbientActive(screenOpen && (container || ENGINE.opt.otherScreens));
+        ENGINE.setAmbientActive(screenOpen && (container || (menu && ENGINE.opt.otherScreens)));
         ENGINE.update(dt, g.guiWidth(), g.guiHeight());
         return true;
     }
 
     /** Start of Screen.extractRenderStateWithTooltipAndSubtitles: draws behind the panel. */
     public static void backdrop(Screen s, GuiGraphicsExtractor g) {
+        tintOn = false;
         if (failed) return;
         try {
             boolean container = s instanceof PanelInfo;
@@ -66,7 +70,14 @@ public final class Hooks {
                 LOGGER.warn("Festive Screens: container screens were not hooked (mixin not applied); "
                         + "only ambient particles will show.");
             }
-            if (!begin(g, true, container)) return;
+            boolean menu = !container && isMenu(s);
+            if (!begin(g, true, container, menu)) return;
+            if (container || (menu && Settings.menuMusic())) Music.tick(ENGINE.theme(), Settings.musicVolume());
+            else Music.stop();
+            if (menu && s != lastMenu) {
+                lastMenu = s;
+                if (s.getClass().getName().contains("TitleScreen")) ENGINE.burst(true, 0, 0, 0, 0, false);
+            }
             if (s instanceof PanelInfo p) {
                 pl = p.festive$left();
                 pt = p.festive$top();
@@ -79,6 +90,7 @@ public final class Hooks {
                     ENGINE.burst(true, pl, pt, pw, ph, lastWasChest);
                 }
                 ENGINE.renderBackdrop(CANVAS.with(g), pl, pt, pw, ph);
+                tintOn = ENGINE.opt.panelTint;
             }
         } catch (Throwable e) {
             fail(e);
@@ -87,9 +99,13 @@ public final class Hooks {
 
     /** Just before tooltips are drawn: decorations, furnace sparks and particles, over the slots. */
     public static void foreground(Screen s, GuiGraphicsExtractor g) {
+        tintOn = false;
         if (failed || ENGINE.theme() == Theme.NONE) return;
         try {
             CANVAS.with(g);
+            if (!(s instanceof PanelInfo) && ENGINE.opt.otherScreens && isMenu(s)) {
+                ENGINE.renderScreen(CANVAS, g.guiWidth(), g.guiHeight());
+            }
             if (s instanceof PanelInfo p) {
                 ENGINE.renderDecor(CANVAS, p.festive$left(), p.festive$top(), p.festive$width(), p.festive$height());
                 if (s instanceof AbstractContainerScreen<?> acs && acs.getMenu() instanceof AbstractFurnaceMenu fm) {
@@ -106,10 +122,14 @@ public final class Hooks {
     public static void hud(GuiGraphicsExtractor g) {
         if (failed) return;
         try {
+            tintOn = false;
             if (Minecraft.getInstance().screen != null) return;
-            if (!begin(g, false, false)) return;
+            lastMenu = null;
+            Music.stop();
+            if (!begin(g, false, false, false)) return;
             if (lastContainer != null) {
                 lastContainer = null;
+                Music.stop();
                 ENGINE.burst(false, pl, pt, pw, ph, lastWasChest);
             }
             ENGINE.renderParticles(CANVAS.with(g));
@@ -118,7 +138,45 @@ public final class Hooks {
         }
     }
 
+    /**
+     * Called for every plain GUI texture blit (colour = what the texture is multiplied by, white = unchanged).
+     * Only active between the start of a container screen's rendering and its tooltips, so the panel, slots and
+     * buttons take the theme colour while tooltips and the HUD stay normal.
+     */
+    public static int tint(int colour) {
+        if (!tintOn || colour != -1) return colour;
+        try {
+            return ENGINE.panelTint();
+        } catch (Throwable e) {
+            tintOn = false;
+            fail(e);
+            return colour;
+        }
+    }
+
+    private static final String[] MENU_NAMES = {"TitleScreen", "PauseScreen", "OptionsScreen", "OptionsSubScreen",
+            "SelectWorld", "WorldSelection", "JoinMultiplayer", "CreateWorld", "EditWorld", "ControlsScreen",
+            "KeyBindsScreen", "LanguageSelect", "PackSelection", "SoundOptions", "SkinCustomization", "Accessibility",
+            "VideoSettings", "ShareToLan", "Realms", "Credits", "Telemetry", "ModListScreen", "ModsScreen"};
+
+    /** Whole-screen menus that get the themed dressing (title, pause, options, world list...). */
+    private static boolean isMenu(Screen s) {
+        String n = s.getClass().getName();
+        for (String m : MENU_NAMES) if (n.contains(m)) return true;
+        return false;
+    }
+
+    /** True while one of our tracks is playing, so vanilla music can stay quiet. */
+    public static boolean musicPlaying() {
+        return Music.isPlaying();
+    }
+
     private static void fail(Throwable e) {
+        try {
+            Music.stop();
+        } catch (Throwable ignored) {
+            // nothing more we can do
+        }
         failed = true;
         LOGGER.error("Festive Screens hit an error and has switched itself off for this session", e);
     }

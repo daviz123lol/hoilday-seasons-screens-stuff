@@ -65,3 +65,18 @@ In game: **Mods > Festive Screens > Config**. Or `config/festivescreens-client.t
 - `core/` - the effects engine and all pixel art. No Minecraft code, so it is unit-testable and portable.
 - `client/` + `mixin/` - the thin layer that hooks Minecraft's screen rendering.
 - `Settings.java` - the config.
+
+## v1.1 additions
+- **Panel re-colour**: container panels (inventory, chests, furnaces...) take the theme's colours (`panelTint` option).
+- **Edge dressing**: icicles + snowman, spooky goo, heart garland, bunting, vines, streamers, snow/grass/sand/leaf ground.
+- **Theme music**: one looping track per theme while a container is open (`music`, `musicVolume` options). Tracks are
+  original synthesized arrangements (public-domain tunes or originals).
+
+## v1.1.0 (bigger update)
+- Brand-new music: 8 fully arranged loops (lead, chords, arpeggios, bass, percussion, reverb), ~1-2 minutes each.
+- Plays on container screens AND on the title screen / pause / options / world list (`menuMusic`). Vanilla music stays quiet while it plays.
+- Title screen and menus are themed too (`menuScreens`): glowing screen edge, corner decorations, icicles/bunting/vines,
+  snow/grass/sand ground, falling particles.
+- Effects: glowing halos, spinning beach balls with floor shadows, heartbeat-pulsing hearts with trails and a heart ring,
+  gift boxes, confetti, fireworks in 3 patterns, Halloween lightning + ghost, Cupid's arrow, seagulls.
+- Opening any screen sends a shockwave ring out from the panel; chests also shoot up a beam of light.

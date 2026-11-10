@@ -1,0 +1,66 @@
+{
+  "music.christmas": {
+    "sounds": [
+      {
+        "name": "festivescreens:music/christmas",
+        "stream": true
+      }
+    ]
+  },
+  "music.halloween": {
+    "sounds": [
+      {
+        "name": "festivescreens:music/halloween",
+        "stream": true
+      }
+    ]
+  },
+  "music.new_years": {
+    "sounds": [
+      {
+        "name": "festivescreens:music/new_years",
+        "stream": true
+      }
+    ]
+  },
+  "music.valentines": {
+    "sounds": [
+      {
+        "name": "festivescreens:music/valentines",
+        "stream": true
+      }
+    ]
+  },
+  "music.st_patricks": {
+    "sounds": [
+      {
+        "name": "festivescreens:music/st_patricks",
+        "stream": true
+      }
+    ]
+  },
+  "music.spring": {
+    "sounds": [
+      {
+        "name": "festivescreens:music/spring",
+        "stream": true
+      }
+    ]
+  },
+  "music.summer": {
+    "sounds": [
+      {
+        "name": "festivescreens:music/summer",
+        "stream": true
+      }
+    ]
+  },
+  "music.thanksgiving": {
+    "sounds": [
+      {
+        "name": "festivescreens:music/thanksgiving",
+        "stream": true
+      }
+    ]
+  }
+}

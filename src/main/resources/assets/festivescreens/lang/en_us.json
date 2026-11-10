@@ -5,9 +5,13 @@
   "festivescreens.configuration.mode": "Theme",
   "festivescreens.configuration.openCloseAnimations": "Open/close animations",
   "festivescreens.configuration.ambientParticles": "Ambient particles",
+  "festivescreens.configuration.panelTint": "Re-colour the panel",
+  "festivescreens.configuration.music": "Theme music",
+  "festivescreens.configuration.musicVolume": "Music volume",
   "festivescreens.configuration.decorations": "Decorations (border, corners, lights)",
   "festivescreens.configuration.furnaceEffects": "Furnace flame effects",
-  "festivescreens.configuration.otherScreens": "Particles on other screens",
+  "festivescreens.configuration.menuScreens": "Decorate title screen & menus",
+  "festivescreens.configuration.menuMusic": "Music on title screen & menus",
   "festivescreens.configuration.reduceMotion": "Reduce motion",
   "festivescreens.configuration.intensity": "Particle intensity (%)"
 }

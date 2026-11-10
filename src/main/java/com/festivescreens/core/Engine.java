@@ -14,6 +14,7 @@ public final class Engine {
         public boolean bursts = true;
         public boolean ambient = true;
         public boolean decorations = true;
+        public boolean panelTint = true;
         public boolean furnaceFx = true;
         public boolean otherScreens = false;
         public boolean reduceMotion = false;
@@ -40,9 +41,16 @@ public final class Engine {
         float bobAmp, bobFreq;
         float trail;
         int[] trailPal;
+        Sprite[] anim;
+        /** Spawned by the ambient stream: fades out quickly once the screen closes. */
+        boolean ambient;
+        float fadeLen;
+        /** RGB halo colour (0 = none) and whether it pulses like a heartbeat. */
+        int glow;
+        boolean beat;
     }
 
-    private static final int MAX = 500;
+    private static final int MAX = 700;
     private static final float TAU = 6.2831855f;
 
     private static final int[] FIREWORK = {
@@ -65,6 +73,9 @@ public final class Engine {
     private float ambA, ambB, furnaceAcc, rocketAcc;
     /** 1 right after a chest opens, fades to 0: brightens the border glow like light spilling out. */
     private float flash;
+    /** Chest light-beam, panel shockwave and lightning timers (all count down / up from the open event). */
+    private float beam, shock = 9f, lightning;
+    private float beamX, beamTop;
 
     public Engine(long seed) {
         this.rng = new Random(seed);
@@ -80,7 +91,8 @@ public final class Engine {
         if (t != theme) {
             theme = t;
             ps.clear();
-            ambA = ambB = furnaceAcc = rocketAcc = flash = 0f;
+            ambA = ambB = furnaceAcc = rocketAcc = flash = beam = lightning = 0f;
+            shock = 9f;
         }
     }
 
@@ -149,6 +161,15 @@ public final class Engine {
         p.ay = ay;
         p.life = life;
         p.scale = scale;
+        switch (theme) {
+            case VALENTINES -> { p.glow = 0xFF4F7B; p.beat = true; }
+            case ST_PATRICKS -> p.glow = 0xFFD54F;
+            case SUMMER -> p.glow = 0x4FC3F7;
+            case CHRISTMAS -> p.glow = 0xBBDEFB;
+            case NEW_YEARS -> p.glow = 0xFFD54F;
+            case HALLOWEEN -> p.glow = 0x9C4DFF;
+            default -> { }
+        }
         return add(p);
     }
 
@@ -179,16 +200,24 @@ public final class Engine {
     // ------------------------------------------------------------------ simulation
 
     public void update(float dt, int w, int h) {
-        screenW = w;
         screenH = h;
+        screenW = w;
         lastDt = dt;
         if (dt <= 0f || theme == Theme.NONE) return;
         time += dt;
         flash = Math.max(0f, flash - dt * 1.6f);
+        beam = Math.max(0f, beam - dt * 0.7f);
+        lightning = Math.max(0f, lightning - dt);
+        shock += dt;
 
         for (int i = ps.size() - 1; i >= 0; i--) {
             P p = ps.get(i);
             p.age += dt;
+            if (!ambientActive && p.ambient && p.life - p.age > 0.8f) {
+                p.life = p.age + 0.8f;
+                p.fade = true;
+                p.fadeLen = 0.8f;
+            }
             boolean dead = p.age >= p.life;
 
             if (p.trailPal != null) {
@@ -242,13 +271,15 @@ public final class Engine {
         float k = opt.intensity;
         int main = pick(FIREWORK);
         int alt = pick(FIREWORK);
-        int n = count(30, k);
+        int n = count(44, k);
+        int pattern = ri(3); // 0 sphere, 1 double ring, 2 willow
         for (int i = 0; i < n; i++) {
             float a = (i / (float) n) * TAU + rf(-0.08f, 0.08f);
-            float sp = i % 3 == 0 ? 88f : rf(30f, 90f);
+            float sp = pattern == 1 ? (i % 2 == 0 ? 96f : 52f) : (i % 3 == 0 ? 88f : rf(30f, 90f));
             P p = spark(x, y, (float) Math.cos(a) * sp, (float) Math.sin(a) * sp, 62f, rf(0.9f, 1.5f),
                     i % 2 == 0 ? main : alt, 2);
-            p.drag = 0.9f;
+            p.drag = pattern == 2 ? 1.4f : 0.9f;
+            if (pattern == 2) { p.ay = 30f; p.life += 1.0f; }
             p.twinkle = true;
         }
         for (int i = 0; i < 6; i++) {
@@ -268,7 +299,9 @@ public final class Engine {
     /** Same, with {@code chest = true} for chests, ender chests, barrels and shulker boxes: adds the lid-pop effect. */
     public void burst(boolean open, int l, int t, int w, int h, boolean chest) {
         if (theme == Theme.NONE || !opt.bursts || opt.reduceMotion) return;
-        float k = opt.intensity * (open ? 1f : 0.7f);
+        float k = opt.intensity * (open ? 1f : 0.7f) * 1.25f;
+        if (w > 0) shock = open ? 0f : 0.15f;
+        if (open && theme == Theme.HALLOWEEN) lightning = 0.55f;
         float cx = w > 0 ? l + w / 2f : screenW / 2f;
         float cy = w > 0 ? t + h / 2f : screenH / 2f;
         switch (theme) {
@@ -320,9 +353,10 @@ public final class Engine {
                 p.drag = 0.5f;
             }
         }
-        for (int i = 0; i < count(6, k); i++) {
-            float vx = rf(-70f, 70f);
-            P p = spr(Sprites.ORNAMENTS[ri(4)], cx, cy, vx, rf(-150f, -80f), 0f, 230f, rf(2.6f, 3.6f), 2);
+        for (int i = 0; i < count(7, k); i++) {
+            float vx = rf(-80f, 80f);
+            Sprite sp = i % 3 == 0 ? Sprites.GIFT : (i % 3 == 1 ? Sprites.GIFT_GREEN : Sprites.ORNAMENTS[ri(4)][0]);
+            P p = spr(new Sprite[] {sp}, cx, cy, vx, rf(-170f, -80f), 0f, 230f, rf(3.2f, 4.2f), 2);
             p.bounce = true;
             p.floor = screenH - 10;
         }
@@ -338,6 +372,15 @@ public final class Engine {
             P p = spark(cx, cy, d[0], d[1], 60f, rf(1.8f, 2.8f), pick(FIREWORK), 2);
             p.drag = 0.9f;
             p.twinkle = true;
+        }
+        // confetti: lots of little coloured strips that flutter down
+        for (int i = 0; i < count(50, k); i++) {
+            float[] d = dir(40f, 210f);
+            P p = spark(cx, cy, d[0], d[1] - 40f, 70f, rf(2.2f, 3.6f), pick(FIREWORK), 2);
+            p.drag = 1.3f;
+            p.twinkle = true;
+            p.swayAmp = rf(1f, 3f);
+            p.swayFreq = rf(6f, 11f);
         }
     }
 
@@ -364,14 +407,23 @@ public final class Engine {
     }
 
     private void burstValentines(float k, float cx, float cy) {
-        for (int i = 0; i < count(22, k); i++) {
-            float[] d = dir(40f, 170f);
-            int sc = ri(5) == 0 ? 3 : (ri(2) == 0 ? 2 : 1);
-            P p = spr(Sprites.HEARTS[ri(4)], cx, cy, d[0], d[1], 0f, -12f, rf(1.8f, 3f), sc);
+        for (int i = 0; i < count(26, k); i++) {
+            float[] d = dir(40f, 190f);
+            int sc = ri(4) == 0 ? 4 : (ri(3) == 0 ? 3 : 2);
+            P p = spr(Sprites.HEARTS[ri(4)], cx, cy, d[0], d[1], 0f, -14f, rf(2.2f, 3.6f), sc);
             p.drag = 0.8f;
             p.swayAmp = rf(2f, 6f);
             p.swayFreq = rf(3f, 6f);
             p.swayPhase = rf(0f, TAU);
+            if (sc >= 3) p.trailPal = new int[] {0xFFFF80AB, 0xFFF8BBD0, 0xFFFFFFFF};
+        }
+        // a ring of little hearts expanding from the middle, like a pulse
+        int ring = count(16, k);
+        for (int i = 0; i < ring; i++) {
+            float a = i / (float) ring * TAU;
+            P p = spr(new Sprite[] {Sprites.HEART_MINI}, cx, cy, (float) Math.cos(a) * 120f, (float) Math.sin(a) * 120f,
+                    0f, 0f, 1.1f, 1);
+            p.drag = 1.6f;
         }
     }
 
@@ -414,9 +466,10 @@ public final class Engine {
     }
 
     private void burstSummer(float k, float cx, float cy) {
-        for (int i = 0; i < count(5, k) + 1; i++) {
-            P p = spr(new Sprite[] {Sprites.BEACH_BALL}, cx, cy, rf(-150f, 150f), rf(-260f, -120f), 0f, 320f,
-                    rf(3.5f, 4.5f), 2);
+        for (int i = 0; i < count(6, k) + 1; i++) {
+            P p = spr(Sprites.BEACH_BALLS, cx, cy, rf(-170f, 170f), rf(-280f, -130f), 0f, 320f,
+                    rf(4.5f, 6f), ri(3) == 0 ? 3 : 2);
+            p.fps = rf(7f, 13f) * (ri(2) == 0 ? 1 : -1);
             p.bounce = true;
             p.floor = screenH - 18;
         }
@@ -450,6 +503,9 @@ public final class Engine {
         float top = w > 0 ? t + 4f : screenH / 3f;
         float span = w > 0 ? w : 120f;
         flash = open ? 1f : 0.5f;
+        beam = open ? 1f : 0.55f;
+        beamX = cx;
+        beamTop = top;
         if (open) {
             P lid = spr(new Sprite[] {Sprites.CHEST_LID}, cx, top, 0f, -70f, 0f, 40f, 0.55f, 3);
             lid.bounce = false;
@@ -504,7 +560,8 @@ public final class Engine {
                 }
                 case SUMMER -> {
                     if (i % 6 == 0) {
-                        P p = spr(new Sprite[] {Sprites.BEACH_BALL}, x, top, vx, vy, 0f, 340f, rf(2.5f, 3.5f), 1);
+                        P p = spr(Sprites.BEACH_BALLS, x, top, vx, vy, 0f, 340f, rf(3.5f, 4.8f), 2);
+                        p.fps = rf(8f, 12f);
                         p.bounce = true;
                         p.floor = screenH - 14;
                     } else {
@@ -547,6 +604,58 @@ public final class Engine {
             p.bobFreq = 3f;
             p.trailPal = GOLD_TRAIL;
             add(p);
+        } else if (theme == Theme.HALLOWEEN) {
+            P p = new P();
+            p.kind = Kind.FLYBY;
+            p.frames = new Sprite[] {Sprites.GHOST_A};
+            p.anim = Sprites.GHOST;
+            p.fps = 3f;
+            p.offX = new int[] {0};
+            p.offY = new int[] {0};
+            p.scale = 3;
+            p.x = -40f;
+            p.y = y;
+            p.vx = (screenW + 100f) / 5.5f;
+            p.life = 8f;
+            p.fade = false;
+            p.bobAmp = 6f;
+            p.bobFreq = 2.4f;
+            p.trailPal = new int[] {0xFFB39DDB, 0xFFD1C4E9, 0xFFFFFFFF};
+            add(p);
+        } else if (theme == Theme.VALENTINES) {
+            P p = new P();
+            p.kind = Kind.FLYBY;
+            p.frames = new Sprite[] {Sprites.ARROW};
+            p.offX = new int[] {0};
+            p.offY = new int[] {0};
+            p.scale = 3;
+            p.x = screenW + 40f;
+            p.y = y + 10f;
+            p.vx = -(screenW + 100f) / 1.6f;
+            p.vy = 12f;
+            p.life = 3f;
+            p.fade = false;
+            p.trailPal = new int[] {0xFFFF80AB, 0xFFF8BBD0, 0xFFFFFFFF};
+            add(p);
+        } else if (theme == Theme.SUMMER) {
+            for (int i = 0; i < 2; i++) {
+                P p = new P();
+                p.kind = Kind.FLYBY;
+                p.frames = new Sprite[] {Sprites.GULL_A};
+                p.anim = Sprites.GULL;
+                p.fps = 3.5f;
+                p.offX = new int[] {0};
+                p.offY = new int[] {0};
+                p.scale = 2;
+                p.x = -30f - i * 34f;
+                p.y = y + i * 12f;
+                p.vx = (screenW + 100f) / 5f;
+                p.life = 8f;
+                p.fade = false;
+                p.bobAmp = 3f;
+                p.bobFreq = 2.2f + i;
+                add(p);
+            }
         } else if (theme == Theme.THANKSGIVING) {
             float vx = (screenW + 100f) / 4.4f;
             P p = new P();
@@ -573,12 +682,12 @@ public final class Engine {
         float rateA, rateB = 0f;
         switch (theme) {
             case HALLOWEEN -> { rateA = 0.35f; rateB = 5f; }
-            case CHRISTMAS -> rateA = 16f;
+            case CHRISTMAS -> { rateA = 16f; rateB = 2.2f; }
             case NEW_YEARS -> { rateA = 12f; rateB = 0.2f; }
-            case VALENTINES -> rateA = 5f;
+            case VALENTINES -> { rateA = 5f; rateB = 2.5f; }
             case ST_PATRICKS -> { rateA = 3f; rateB = 6f; }
             case SPRING -> { rateA = 7f; rateB = 0.15f; }
-            case SUMMER -> rateA = 6f;
+            case SUMMER -> { rateA = 6f; rateB = 2f; }
             case THANKSGIVING -> rateA = 7f;
             default -> { return; }
         }
@@ -586,12 +695,20 @@ public final class Engine {
         ambB += dt * rateB * k;
         while (ambA >= 1f) {
             ambA -= 1f;
+            int n0 = ps.size();
             ambientA();
+            markAmbient(n0);
         }
         while (ambB >= 1f) {
             ambB -= 1f;
+            int n0 = ps.size();
             ambientB();
+            markAmbient(n0);
         }
+    }
+
+    private void markAmbient(int from) {
+        for (int i = from; i < ps.size(); i++) ps.get(i).ambient = true;
     }
 
     private void ambientA() {
@@ -686,6 +803,10 @@ public final class Engine {
                 p.twinkle = true;
             }
             case NEW_YEARS -> rocketAcc += 1f;
+            case CHRISTMAS, VALENTINES, SUMMER -> {
+                P p = spr(new Sprite[] {Sprites.TWINKLE}, rf(0f, screenW), rf(0f, screenH), 0f, 0f, 0f, 0f, rf(0.5f, 0.9f), 1 + ri(2));
+                p.glow = 0;
+            }
             case ST_PATRICKS -> {
                 P p = spark(rf(0f, screenW), rf(0f, screenH), 0f, 0f, 0f, rf(0.4f, 0.8f), 0xFFFFD54F, 2);
                 p.twinkle = true;
@@ -752,13 +873,28 @@ public final class Engine {
 
     private float alpha(P p) {
         float a = 1f;
-        if (p.fade) a = Math.min(1f, (p.life - p.age) / (p.life * 0.3f));
+        if (p.fade) {
+            float fl = p.fadeLen > 0f ? p.fadeLen : p.life * 0.3f;
+            a = Math.min(1f, (p.life - p.age) / fl);
+        }
         a = Math.min(a, p.age / 0.12f + 0.0f);
         return clamp(a, 0f, 1f);
     }
 
+    private int halos;
+
+    /** A soft round glow made of a few stacked horizontal bars. */
+    private void halo(Canvas c, int cx, int cy, int r, int rgb, float a) {
+        int col = rgbAlpha(rgb, a);
+        for (int dy = -r; dy < r; dy += 2) {
+            int half = (int) Math.sqrt(Math.max(0, r * r - (dy + 1) * (dy + 1)));
+            if (half > 0) c.fill(cx - half, cy + dy, cx + half, cy + dy + 2, col);
+        }
+    }
+
     public void renderParticles(Canvas c) {
         if (theme == Theme.NONE) return;
+        halos = 0;
         for (int i = 0; i < ps.size(); i++) {
             P p = ps.get(i);
             float a = alpha(p);
@@ -769,8 +905,25 @@ public final class Engine {
             int y = (int) Math.floor(p.y + by);
             switch (p.kind) {
                 case SPRITE -> {
-                    Sprite s = p.frames[p.frames.length == 1 ? 0 : ((int) (p.age * p.fps)) % p.frames.length];
-                    s.draw(c, x - s.w * p.scale / 2, y - s.h * p.scale / 2, p.scale, a, false, false);
+                    int fi = p.frames.length == 1 ? 0 : Math.floorMod((int) Math.floor(p.age * p.fps), p.frames.length);
+                    boolean resting = p.bounce && p.ay == 0f && p.vy == 0f;
+                    if (resting) fi = 0;
+                    Sprite s = p.frames[fi];
+                    int sw = s.w * p.scale, sh = s.h * p.scale;
+                    if (p.bounce && !resting) {
+                        float hgt = Math.max(0f, p.floor - p.y);
+                        float sk = clamp(1f - hgt / 190f, 0.15f, 1f);
+                        int shw = Math.round(sw * (0.5f + 0.5f * sk));
+                        c.fill(x - shw / 2, (int) p.floor + sh / 2, x + shw / 2, (int) p.floor + sh / 2 + 2, rgbAlpha(0x000000, 0.28f * sk * a));
+                    }
+                    if (p.glow != 0 && halos < 40 && (p.scale >= 2 || p.beat)) {
+                        halos++;
+                        float pu = p.beat && !opt.reduceMotion ? 0.45f + 0.55f * (float) Math.pow(Math.max(0, Math.sin(p.age * 6.5 + p.x * 0.05)), 6) : 0.75f;
+                        int r = Math.max(sw, sh) / 2 + 5;
+                        halo(c, x, y, r, p.glow, 0.13f * a * pu);
+                        halo(c, x, y, r * 2 / 3, p.glow, 0.15f * a * pu);
+                    }
+                    s.draw(c, x - sw / 2, y - sh / 2, p.scale, a, false, false);
                 }
                 case SPARK -> {
                     float tw = p.twinkle ? 0.55f + 0.45f * (float) Math.sin(p.age * 18f + p.x) : 1f;
@@ -781,8 +934,14 @@ public final class Engine {
                     c.fill(x, y + 3, x + 2, y + 5, 0xCCFFB300);
                 }
                 case FLYBY -> {
-                    for (int j = 0; j < p.frames.length; j++) {
-                        p.frames[j].draw(c, x + p.offX[j], y + p.offY[j], p.scale, a, false, false);
+                    if (p.anim != null) {
+                        Sprite f = p.anim[((int) (p.age * p.fps)) % p.anim.length];
+                        if (theme == Theme.HALLOWEEN) halo(c, x + f.w * p.scale / 2, y + f.h * p.scale / 2, f.w * p.scale / 2 + 6, 0xB39DDB, 0.14f);
+                        f.draw(c, x, y, p.scale, theme == Theme.HALLOWEEN ? 0.85f : a, false, false);
+                    } else {
+                        for (int j = 0; j < p.frames.length; j++) {
+                            p.frames[j].draw(c, x + p.offX[j], y + p.offY[j], p.scale, a, false, false);
+                        }
                     }
                 }
             }
@@ -793,9 +952,74 @@ public final class Engine {
 
     public void renderBackdrop(Canvas c, int l, int t, int w, int h) {
         if (theme == Theme.NONE || !opt.decorations) return;
+        if (lightning > 0f) {
+            float la = lightning > 0.47f ? 0.30f : (lightning > 0.38f ? 0f : (lightning > 0.28f ? 0.2f : 0f));
+            if (la > 0f) c.fill(0, 0, screenW, screenH, rgbAlpha(0xE8E0FF, la));
+        }
+        if (beam > 0f && beamTop > 4f) lightBeam(c);
         glow(c, l, t, w, h);
-        if (theme == Theme.ST_PATRICKS) rainbow(c, l, t, w);
+        shockwave(c, l, t, w, h);
+        if (theme == Theme.ST_PATRICKS) rainbow(c, l, t, w, 0.8f);
+        if (theme == Theme.SPRING) rainbow(c, l, t, w, 0.45f);
         if (theme == Theme.SUMMER) waves(c, l, t, w, h);
+    }
+
+    /** Expanding glowing outline around the panel right after it opens. */
+    private void shockwave(Canvas c, int l, int t, int w, int h) {
+        if (shock > 0.9f || w <= 0) return;
+        int col = mix(theme.glowA, theme.glowB, 0.5f);
+        for (int ring = 0; ring < 2; ring++) {
+            float u = (shock - ring * 0.12f) / 0.75f;
+            if (u <= 0f || u >= 1f) continue;
+            int e = 4 + Math.round(u * 54f);
+            float a = (1f - u) * (1f - u) * 0.85f;
+            int cc = rgbAlpha(col, a);
+            int th = 3;
+            c.fill(l - e, t - e, l + w + e, t - e + th, cc);
+            c.fill(l - e, t + h + e - th, l + w + e, t + h + e, cc);
+            c.fill(l - e, t - e + th, l - e + th, t + h + e - th, cc);
+            c.fill(l + w + e - th, t - e + th, l + w + e, t + h + e - th, cc);
+        }
+    }
+
+    /** Shafts of light rising out of an opening chest. */
+    private void lightBeam(Canvas c) {
+        int top = Math.round(beamTop);
+        int col = mix(0xFFFFFF, theme.glowB, 0.35f);
+        float tt = tt();
+        for (int y = 0; y < top; y += 2) {
+            float f = y / (float) top;
+            float a = beam * (0.10f + 0.34f * f);
+            int half = 8 + Math.round((1f - f) * 26f);
+            int cx = Math.round(beamX);
+            c.fill(cx - half, y, cx + half, y + 2, rgbAlpha(col, a * 0.55f));
+            int half2 = half / 2;
+            c.fill(cx - half2, y, cx + half2, y + 2, rgbAlpha(0xFFFFFF, a * 0.8f));
+            int off = Math.round((1f - f) * 52f);
+            int wob = Math.round((float) Math.sin(tt * 3f + y * 0.05f) * 3f);
+            c.fill(cx - off - 3 + wob, y, cx - off + 3 + wob, y + 2, rgbAlpha(col, a * 0.5f));
+            c.fill(cx + off - 3 - wob, y, cx + off + 3 - wob, y + 2, rgbAlpha(col, a * 0.5f));
+        }
+    }
+
+    // ------------------------------------------------------------------ menus (title, pause, options...)
+
+    /** Themed dressing for whole-screen menus: edge glow, corner decorations, fringe along the top, ground below. */
+    public void renderScreen(Canvas c, int w, int h) {
+        if (theme == Theme.NONE || !opt.decorations) return;
+        float s = (float) (Math.sin(tt() * 1.1) + 1.0) / 2f;
+        int col = mix(theme.glowA, theme.glowB, s);
+        float pulse = pulse();
+        for (int i = 0; i < 7; i++) {
+            float f = 1f - i / 7f;
+            int cc = rgbAlpha(col, 0.5f * pulse * f * f);
+            int d = i * 2;
+            c.fill(d, d, w - d, d + 2, cc);
+            c.fill(d, h - d - 2, w - d, h - d, cc);
+            c.fill(d, d + 2, d + 2, h - d - 2, cc);
+            c.fill(w - d - 2, d + 2, w - d, h - d - 2, cc);
+        }
+        renderDecor(c, 6, 6, w - 12, h - 12);
     }
 
     private float pulse() {
@@ -831,7 +1055,7 @@ public final class Engine {
         }
     }
 
-    private void rainbow(Canvas c, int l, int t, int w) {
+    private void rainbow(Canvas c, int l, int t, int w, float alpha) {
         float half = w / 2f;
         float cx = l + half;
         for (int x = l; x < l + w; x += 4) {
@@ -841,7 +1065,7 @@ public final class Engine {
             for (int i = 0; i < RAINBOW.length; i++) {
                 int y = base - i * 2;
                 if (y < 2) continue;
-                c.fill(x, y - 2, x + 4, y, Sprite.withAlpha(RAINBOW[i], 0.8f));
+                c.fill(x, y - 2, x + 4, y, Sprite.withAlpha(RAINBOW[i], alpha));
             }
         }
     }
@@ -949,6 +1173,164 @@ public final class Engine {
                 corner(c, Sprites.PUMPKIN_PLAIN, 2, l, t, w, h, true, true, 8, true);
             }
             default -> { }
+        }
+        fringe(c, l, t, w);
+        ground(c, l, t, w, h);
+    }
+
+    // ------------------------------------------------------------------ panel retheme
+
+    /** Multiply colour for the container panel texture (white = unchanged). Slowly shifts between two shades. */
+    public int panelTint() {
+        float s = (float) (Math.sin(tt() * 0.8) + 1.0) / 2f;
+        int a, b;
+        switch (theme) {
+            case CHRISTMAS -> { a = 0xA9D2FF; b = 0xCDE6FF; }
+            case HALLOWEEN -> { a = 0xB48CE0; b = 0xD6A2F0; }
+            case NEW_YEARS -> { a = 0xB4C4FF; b = 0xD2B8FF; }
+            case VALENTINES -> { a = 0xFFAECB; b = 0xFFD3DF; }
+            case ST_PATRICKS -> { a = 0xA8F0A0; b = 0xD2FFB0; }
+            case SPRING -> { a = 0xC9F5B8; b = 0xFFD2E8; }
+            case SUMMER -> { a = 0xB5E8FF; b = 0xCDF6FF; }
+            case THANKSGIVING -> { a = 0xFFC48A; b = 0xE8A465; }
+            default -> { return 0xFFFFFFFF; }
+        }
+        return 0xFF000000 | mix(a, b, s);
+    }
+
+    private static int hash(int x) {
+        int h = x * 0x9E3779B1;
+        h ^= h >>> 15;
+        h *= 0x85EBCA6B;
+        h ^= h >>> 13;
+        return h & 0x7FFFFFFF;
+    }
+
+    /** Things hanging from the top edge of the panel: icicles, goo, garlands, bunting, vines, streamers. */
+    private void fringe(Canvas c, int l, int t, int w) {
+        float tt = tt();
+        switch (theme) {
+            case CHRISTMAS -> {
+                for (int x = l + 1; x < l + w - 1; x += 6) {
+                    int bump = hash(x) % 3;
+                    c.fill(x, t - 1 - bump / 2, x + 6, t + 3, 0xF5FFFFFF);
+                    c.fill(x, t + 3, x + 6, t + 4, 0xFFBBD7F2);
+                }
+                for (int x = l + 4; x < l + w - 4; x += 4) {
+                    int len = 4 + hash(x * 3) % 9;
+                    c.fill(x, t + 4, x + 3, t + 4 + len / 2, 0xE8CDE8FF);
+                    c.fill(x + 1, t + 4 + len / 2, x + 2, t + 4 + len, 0xE8CDE8FF);
+                    c.fill(x, t + 4, x + 1, t + 4 + len / 2, 0xFFFFFFFF);
+                }
+            }
+            case HALLOWEEN -> {
+                c.fill(l + 1, t - 1, l + w - 1, t + 3, 0xF0512DA8);
+                for (int x = l + 4; x < l + w - 4; x += 5) {
+                    int len = 3 + hash(x) % 10;
+                    float grow = opt.reduceMotion ? 1f : 0.85f + 0.15f * (float) Math.sin(tt * 2f + x);
+                    int ll = Math.round(len * grow);
+                    c.fill(x, t + 3, x + 2, t + 3 + ll, 0xF0512DA8);
+                    c.fill(x - 1, t + 3 + ll, x + 3, t + 5 + ll, 0xF07E57C2);
+                    c.fill(x, t + 3, x + 1, t + 3 + ll, 0xFF9575CD);
+                }
+            }
+            case VALENTINES -> {
+                int last = -1;
+                for (int x = l + 2; x < l + w - 2; x += 2) {
+                    float u = (x - l) / (float) w;
+                    int y = t + 2 + Math.round((float) Math.sin(u * Math.PI * 6) * 3f + 3f);
+                    c.fill(x, y, x + 2, y + 1, 0xFFF8BBD0);
+                    if (x - last >= 14 && x < l + w - 10) {
+                        last = x;
+                        Sprites.HEARTS[(x / 14) % 4][0].draw(c, x - 2, y + 1, 1, 1f, false, false);
+                    }
+                }
+            }
+            case ST_PATRICKS -> bunting(c, l, t, w, new int[] {0xFF2E9E3E, 0xFFFFC107, 0xFFFFFFFF, 0xFF66BB6A});
+            case SUMMER -> bunting(c, l, t, w, new int[] {0xFFFF7043, 0xFFFFD54F, 0xFF26C6DA, 0xFFFFFFFF});
+            case THANKSGIVING -> bunting(c, l, t, w, new int[] {0xFFE65100, 0xFF8D6E63, 0xFFFFB300, 0xFFBF360C});
+            case SPRING -> {
+                c.fill(l + 1, t - 1, l + w - 1, t + 2, 0xFF2E7D32);
+                for (int x = l + 3; x < l + w - 3; x += 4) {
+                    int len = 3 + hash(x) % 10;
+                    c.fill(x, t + 2, x + 1, t + 2 + len, 0xFF43A047);
+                    c.fill(x + 1, t + 4 + len / 2, x + 3, t + 5 + len / 2, 0xFF66BB6A);
+                    if (hash(x + 7) % 3 == 0) {
+                        int fy = t + 2 + len;
+                        c.fill(x - 1, fy, x + 2, fy + 3, hash(x) % 2 == 0 ? 0xFFF48FB1 : 0xFFFFFFFF);
+                        c.fill(x, fy + 1, x + 1, fy + 2, 0xFFFFD54F);
+                    }
+                }
+            }
+            case NEW_YEARS -> {
+                int[] cols = {0xFFFFD54F, 0xFFE0E0E0, 0xFF64B5F6, 0xFFF06292, 0xFF81C784};
+                for (int x = l + 4; x < l + w - 4; x += 5) {
+                    int len = 6 + hash(x) % 12;
+                    int col = cols[hash(x + 3) % cols.length];
+                    for (int y = 0; y < len; y++) {
+                        int sx = Math.round((float) Math.sin(tt * 3f + x * 0.3f + y * 0.45f) * (opt.reduceMotion ? 0f : 1.5f));
+                        c.fill(x + sx, t + 1 + y, x + sx + 2, t + 2 + y, col);
+                    }
+                }
+            }
+            default -> { }
+        }
+    }
+
+    private void bunting(Canvas c, int l, int t, int w, int[] pal) {
+        float tt = tt();
+        int i = 0;
+        for (int x = l + 3; x < l + w - 9; x += 9, i++) {
+            float u = (x - l) / (float) w;
+            int y = t + 1 + Math.round((float) Math.sin(u * Math.PI * 3) * 2f + 2f);
+            c.fill(x - 1, y - 1, x + 10, y, 0xFF5D4037);
+            int sway = opt.reduceMotion ? 0 : Math.round((float) Math.sin(tt * 2f + i) * 1f);
+            int col = pal[i % pal.length];
+            for (int r = 0; r < 6; r++) {
+                c.fill(x + r / 2 + sway, y + r, x + 8 - r / 2 + sway, y + r + 1, col);
+            }
+        }
+    }
+
+    /** Ground along the bottom edge: snow drifts, grass, sand, leaf piles, a snowman. */
+    private void ground(Canvas c, int l, int t, int w, int h) {
+        int b = t + h;
+        boolean full = l <= 6 && w >= screenW - 16;
+        if (b + 8 > screenH && !full) return;
+        switch (theme) {
+            case CHRISTMAS -> {
+                mound(c, l, b, w, 0xFFFFFFFF, 0xFFD7E8F7);
+                if (full) Sprites.SNOWMAN.draw(c, l + 8, b + 5 - 28, 2, 1f, false, false);
+                else if (b - 20 > 0 && l + w + 22 < screenW) Sprites.SNOWMAN.draw(c, l + w + 2, b + 5 - 28, 2, 1f, false, false);
+            }
+            case SPRING -> {
+                mound(c, l, b, w, 0xFF66BB6A, 0xFF2E7D32);
+                for (int x = l + 3; x < l + w - 3; x += 5) {
+                    int hh = 3 + hash(x) % 5;
+                    c.fill(x, b + 1 - hh, x + 1, b + 1, 0xFF81C784);
+                }
+            }
+            case SUMMER -> mound(c, l, b, w, 0xFFFFE082, 0xFFE6C06A);
+            case THANKSGIVING -> mound(c, l, b, w, 0xFFE65100, 0xFF8D4A1B);
+            case HALLOWEEN -> mound(c, l, b, w, 0xFF3A2455, 0xFF1F1230);
+            case ST_PATRICKS -> {
+                mound(c, l, b, w, 0xFF43A047, 0xFF1B5E20);
+                for (int x = l + 6; x < l + w - 6; x += 14) {
+                    int py = b + 1;
+                    c.fill(x, py, x + 4, py + 2, 0xFFFFC107);
+                    c.fill(x + 1, py - 1, x + 3, py, 0xFFFFE082);
+                }
+            }
+            default -> { }
+        }
+    }
+
+    private void mound(Canvas c, int l, int b, int w, int top, int body) {
+        for (int x = l - 2; x < l + w + 2; x += 2) {
+            float u = x * 0.13f;
+            int hgt = 3 + Math.round((float) (Math.sin(u) + Math.sin(u * 2.3 + 1)) * 1.4f + 1.4f);
+            c.fill(x, b + 4 - hgt, x + 2, b + 5, top);
+            c.fill(x, b + 4, x + 2, b + 6, body);
         }
     }
 }

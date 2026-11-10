@@ -27,12 +27,24 @@ public final class Settings {
     public static final ModConfigSpec.BooleanValue DECORATIONS = B
             .comment("Glowing border, corner decorations, Christmas lights, rainbow and waves.")
             .define("decorations", true);
+    public static final ModConfigSpec.BooleanValue PANEL_TINT = B
+            .comment("Re-colour the container panel (inventory, chests, furnaces...) in the theme's colours.")
+            .define("panelTint", true);
+    public static final ModConfigSpec.BooleanValue MUSIC = B
+            .comment("Play the theme's music while a chest, furnace, inventory... is open.")
+            .define("music", true);
+    public static final ModConfigSpec.IntValue MUSIC_VOLUME = B
+            .comment("Music volume (0-100), on top of your master volume.")
+            .defineInRange("musicVolume", 40, 0, 100);
     public static final ModConfigSpec.BooleanValue FURNACE_FX = B
             .comment("Themed sparks over the flame of lit furnaces, blast furnaces and smokers.")
             .define("furnaceEffects", true);
-    public static final ModConfigSpec.BooleanValue OTHER_SCREENS = B
-            .comment("Also show ambient particles on non-container screens (pause menu, options...).")
-            .define("otherScreens", false);
+    public static final ModConfigSpec.BooleanValue MENU_SCREENS = B
+            .comment("Also dress up the title screen, pause menu, options and world list (decorations + particles).")
+            .define("menuScreens", true);
+    public static final ModConfigSpec.BooleanValue MENU_MUSIC = B
+            .comment("Also play the theme music on the title screen and menus.")
+            .define("menuMusic", true);
     public static final ModConfigSpec.BooleanValue REDUCE_MOTION = B
             .comment("Static decorations only: no particles, no flybys, no pulsing or blinking.")
             .define("reduceMotion", false);
@@ -71,13 +83,31 @@ public final class Settings {
         }
     }
 
+    public static boolean menuMusic() {
+        try {
+            return MENU_MUSIC.get();
+        } catch (IllegalStateException notLoaded) {
+            return false;
+        }
+    }
+
+    /** 0 when music is off. */
+    public static float musicVolume() {
+        try {
+            return MUSIC.get() ? MUSIC_VOLUME.get() / 100f : 0f;
+        } catch (IllegalStateException notLoaded) {
+            return 0f;
+        }
+    }
+
     public static void apply(Engine.Options o) {
         try {
             o.bursts = BURSTS.get();
             o.ambient = AMBIENT.get();
             o.decorations = DECORATIONS.get();
+            o.panelTint = PANEL_TINT.get();
             o.furnaceFx = FURNACE_FX.get();
-            o.otherScreens = OTHER_SCREENS.get();
+            o.otherScreens = MENU_SCREENS.get();
             o.reduceMotion = REDUCE_MOTION.get();
             o.intensity = INTENSITY.get() / 100f;
         } catch (IllegalStateException notLoaded) {
