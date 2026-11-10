@@ -32,7 +32,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build for NeoForge ${{ matrix.neo }}
-        run: ./gradlew build -Pneo_version=${{ matrix.neo }}
+        run: sh gradlew build -Pneo_version=${{ matrix.neo }}
 
       - name: Upload jar
         uses: actions/upload-artifact@v4
